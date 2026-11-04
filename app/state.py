@@ -12,6 +12,9 @@ class ResearchState(TypedDict):
 
     draft_report: str
 
+    report_outline: str
+    report_meta: dict
+
     human_approved: bool
     human_feedback: str
 

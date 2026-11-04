@@ -13,7 +13,7 @@ const API = axios.create({
 export const startResearch = async (
   topic,
   onChunk,
-  onSource,
+  onMeta,
   onThreadId,
   onReviewReady
 ) => {
@@ -90,12 +90,12 @@ export const startResearch = async (
 
 
       // -------------------------
-      // Source
+      // Report metadata (title, subtitle, category)
       // -------------------------
 
-      else if (data.type === "source") {
+      else if (data.type === "report_meta") {
 
-        onSource(data.content)
+        onMeta(data.meta)
 
       }
 
@@ -106,7 +106,7 @@ export const startResearch = async (
 
       else if (data.type === "review_ready") {
 
-        onReviewReady()
+        onReviewReady(data.report, data.meta)
 
       }
 

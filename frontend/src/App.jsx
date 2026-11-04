@@ -1,6 +1,7 @@
 
 import { useState } from "react";
 import ResearchInput from "./components/ResearchInput";
+import ReportViewer from "./components/ReportViewer";
 import HumanReview from "./components/HumanReview";
 import FollowUpChat from "./components/FollowUpChat";
 
@@ -11,11 +12,13 @@ function App() {
 
   const [report, setReport] = useState("");
 
-  const [sources, setSources] = useState([]);
+  const [meta, setMeta] = useState({});
 
   const [reviewReady, setReviewReady] = useState(false);
 
   const [approved, setApproved] = useState(false);
+
+  const [isSearching, setIsSearching] = useState(false);
 
 
   return (
@@ -77,11 +80,40 @@ function App() {
           <ResearchInput
             setThreadId={setThreadId}
             setReport={setReport}
-            setSources={setSources}
+            setMeta={setMeta}
             setReviewReady={setReviewReady}
+            isSearching={isSearching}
+            setIsSearching={setIsSearching}
+            setApproved={setApproved}
           />
 
         </section>
+
+
+
+        {/* Searching indicator */}
+
+        {isSearching && !report && (
+
+          <section className="mb-8 flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+
+            <span className="h-6 w-6 shrink-0 animate-spin rounded-full border-2 border-slate-300 border-t-slate-900" />
+
+            <div>
+
+              <p className="font-medium text-slate-900">
+                Researching...
+              </p>
+
+              <p className="text-sm text-slate-500">
+                Searching the web and preparing your report. Please wait.
+              </p>
+
+            </div>
+
+          </section>
+
+        )}
 
 
 
@@ -89,7 +121,10 @@ function App() {
 
         {report && (
 
-          <section className="mb-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+          <section
+            id="research-report"
+            className="mb-8 scroll-mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8"
+          >
 
 
             <div className="mb-5 flex items-start justify-between">
@@ -119,49 +154,7 @@ function App() {
 
             {/* Report */}
 
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-5">
-
-              <div className="whitespace-pre-wrap text-[15px] leading-7 text-slate-700">
-
-                {report}
-
-              </div>
-
-
-
-              {/* Sources */}
-
-              {sources.length > 0 && (
-
-                <div className="mt-8 border-t border-slate-200 pt-6">
-
-                  <h3 className="mb-3 text-lg font-semibold text-slate-900">
-                    Sources
-                  </h3>
-
-
-                  <div className="space-y-2">
-
-                    {sources.map((source, index) => (
-
-                      <div
-                        key={index}
-                        className="text-sm leading-6 text-slate-600"
-                      >
-
-                        {source}
-
-                      </div>
-
-                    ))}
-
-                  </div>
-
-                </div>
-
-              )}
-
-            </div>
+            <ReportViewer markdown={report} meta={meta} />
 
           </section>
 
@@ -208,7 +201,9 @@ function App() {
             <HumanReview
               threadId={threadId}
               setReport={setReport}
+              setMeta={setMeta}
               setApproved={setApproved}
+              disabled={isSearching}
             />
 
           </section>

@@ -14,16 +14,8 @@ def human_review_node(state: ResearchState):
 
     return {
         "human_approved": decision["approved"],
-        "human_feedback": decision.get("feedback", "")
+        "human_feedback": decision.get("feedback", ""),
+        # Fresh revision cycle: reset quality-check bookkeeping
+        "revision_attempts": 0,
+        "quality_missing": []
     }
-
-
-def human_review_router(state: ResearchState):
-
-    if state["human_approved"]:
-        return "end"
-
-    if state.get("retry_count", 0) >= 4:
-        return "end"
-
-    return "researcher"

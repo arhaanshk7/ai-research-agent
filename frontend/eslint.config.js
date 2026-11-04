@@ -17,5 +17,9 @@ export default defineConfig([
       globals: globals.browser,
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
+    rules: {
+      // Allow destructuring to omit props from a rest spread (e.g. `node`)
+      'no-unused-vars': ['error', { ignoreRestSiblings: true }],
+    },
   },
 ])

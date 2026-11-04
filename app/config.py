@@ -1,18 +1,25 @@
 import os
 from dotenv import load_dotenv
-from langchain_openai import ChatOpenAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 
 load_dotenv()
 
-nvidia_api_key = os.getenv("NVIDIA_API_KEY")
+google_api_key = os.getenv("GOOGLE_API_KEY")
 
-llm = ChatOpenAI(
-    base_url="https://integrate.api.nvidia.com/v1",
-    api_key=nvidia_api_key,
-    model="nvidia/nemotron-3.5-lightning-30b-a3b",
-    extra_body={
-        "chat_template_kwargs": {
-            "enable_thinking": False
-        }
-    }
+llm = ChatGoogleGenerativeAI(
+    model="gemini-3.5-flash-lite",
+    google_api_key=google_api_key,
+    temperature=0.2,
+    max_retries=2,
 )
+
+
+def content_to_text(content) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "".join(
+            part.get("text", "") if isinstance(part, dict) else getattr(part, "text", str(part))
+            for part in content
+        )
+    return str(content)

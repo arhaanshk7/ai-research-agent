@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { askFollowUp } from "../services/api"
+import Markdown from "./Markdown"
 
 
 function FollowUpChat({ threadId }) {
@@ -91,9 +92,7 @@ function FollowUpChat({ threadId }) {
             Answer
           </h3>
 
-          <div className="whitespace-pre-wrap text-[15px] leading-7 text-slate-700">
-            {answer}
-          </div>
+          <Markdown>{answer}</Markdown>
 
         </div>
 

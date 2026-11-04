@@ -6,7 +6,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from fastapi.responses import StreamingResponse
 import json
-import uuid
 from langgraph.types import Command
 
 
@@ -72,8 +71,13 @@ def research(request: ResearchRequest):
         "research_results": [],
         "sources": [],
         "draft_report": "",
+        "report_outline": "",
+        "report_meta": {},
         "human_approved": False,
         "human_feedback": "",
+        "quality_passed": True,
+        "quality_missing": [],
+        "revision_attempts": 0,
         "follow_up_question": "",
         "follow_up_answer": "",
         "retry_count": 0
@@ -95,18 +99,22 @@ def research(request: ResearchRequest):
             stream_mode="custom"
         ):
 
-            # 3. Forward report chunks
-            if chunk.get("type") in ["report_chunk", "source"]:
+            # 3. Forward report chunks and report metadata
+            if chunk.get("type") in ["report_chunk", "report_meta"]:
 
                 yield json.dumps(chunk) + "\n"
 
 
-        
+
         # graph.stream() has finished.
         # Therefore Writer has completely finished.
-        
+
+        final_state = graph.get_state(config).values
+
         yield json.dumps({
-            "type": "review_ready"
+            "type": "review_ready",
+            "report": final_state.get("draft_report", ""),
+            "meta": final_state.get("report_meta", {}),
         }) + "\n"
 
 
@@ -152,6 +160,7 @@ def review(request: ReviewRequest):
         "thread_id": request.thread_id,
         "status": "revised",
         "report": result.get("draft_report", ""),
+        "meta": result.get("report_meta", {}),
     }
 
 # -------------------------
@@ -187,14 +196,3 @@ def follow_up(request: FollowUpRequest):
         generate(),
         media_type="application/x-ndjson"
     )
-
-# -------------------------
-# Health Check
-# -------------------------
-
-@app.get("/")
-def root():
-
-    return {
-        "message": "AI Research Agent API is running"
-    }

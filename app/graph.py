@@ -39,7 +39,7 @@ builder.add_conditional_edges(
 
 builder.add_edge("planner", "researcher")
 builder.add_edge("researcher", "writer")
-builder.add_edge("writer", "human_review")
+builder.add_edge("writer","human_review")
 
 
 builder.add_conditional_edges(

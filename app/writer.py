@@ -1,62 +1,139 @@
+from langgraph.config import get_stream_writer
 
 from app.state import ResearchState
-from app.config import llm
-from langgraph.config import get_stream_writer
+from app.config import llm, content_to_text
+from app.citations import build_numbered_sources, validate_report
+
+
+EVIDENCE_LIMIT = 2000
+
+
+def build_evidence(state: ResearchState, sources: list[dict]) -> list[str]:
+    """Attach each research result to its citation number."""
+
+    source_by_url = {source["url"]: source for source in sources}
+
+    evidence = []
+    used = set()
+
+    for result in state.get("research_results", []):
+
+        url = str(result.get("url") or "").strip()
+        source = source_by_url.get(url)
+
+        if source is None or url in used:
+            continue
+
+        used.add(url)
+
+        content = str(result.get("content") or "").strip()[:EVIDENCE_LIMIT]
+
+        evidence.append(
+            f"[{source['n']}] {source['title']}\n"
+            f"URL: {url}\n"
+            f"{content}"
+        )
+
+    return evidence
 
 
 def writer_node(state: ResearchState):
 
     print("\n[WRITER] Starting...")
 
-    # Get LangGraph stream writer
     stream_writer = get_stream_writer()
 
-    # Keep only useful research fields
-    research = [
-        {
-            "title": r.get("title"),
-            "url": r.get("url"),
-            "content": r.get("content")
-        }
-        for r in state["research_results"]
-    ]
+    query = state["user_query"]
+    meta = state.get("report_meta") or {}
+    title = meta.get("title") or query
+    subtitle = meta.get("subtitle") or ""
+    outline = state.get("report_outline", "")
 
-    sources = state["sources"]
+    sources = build_numbered_sources(state.get("research_results", []))
+    evidence = build_evidence(state, sources)
+
+    plan = "\n".join(
+        f"- {q}" for q in state.get("research_plan", []) if q and q.strip()
+    )
+
+    feedback = str(state.get("human_feedback") or "").strip()
+    missing = [m for m in state.get("quality_missing", []) if str(m).strip()]
+
+    # Revision prompt: only added when the reviewer rejected the report
+    revision_block = ""
+
+    if feedback:
+        print("[WRITER] Addressing reviewer feedback.")
+
+        revision_block = f"""
+REVIEWER FEEDBACK (this revision MUST address every point):
+{feedback}
+"""
+
+        if missing:
+            revision_block += "\nSTILL NOT ADDRESSED (a quality check failed on the previous revision):\n"
+            revision_block += "\n".join(f"- {m}" for m in missing)
+            revision_block += "\n"
+
+        revision_block += """
+REVISION RULES:
+- Address every point of the reviewer feedback exactly as the reviewer asked.
+- Remove or correct any statistic or claim the reviewer flagged as
+  unsupported. Never invent statistics: every number must appear in the
+  VERIFIED EVIDENCE below and carry its citation.
+- Do not repeat content the reviewer told you to remove.
+"""
+
+    sources_block = "\n\n".join(evidence) if evidence else "No evidence collected."
 
     prompt = f"""
-You are a professional research report writer.
+You are an expert research report writer.
 
-Write a high-quality research report based ONLY on the research provided below.
+Write a complete, evidence-grounded research report in Markdown.
 
-RESEARCH:
-{research}
+REPORT TITLE: {title}
+SUBTITLE: {subtitle}
+TOPIC: {query}
 
-REPORT REQUIREMENTS:
+RESEARCH QUESTIONS:
+{plan}
 
-1. Write a detailed but reasonably sized report.
-2. Target approximately 800–1000 words.
-3. Focus on the most important and useful information.
-4. Do not repeat the same information.
-5. Use clear Markdown headings and subheadings.
-6. Use bullet points when useful.
-7. Only use information contained in the research.
-8. Keep the report professional, factual, and easy to understand.
+REPORT OUTLINE (topic-specific sections to include, in order):
+{outline or "- (no extra sections)"}
+{revision_block}
+VERIFIED EVIDENCE (cite only these sources, using their bracket numbers):
+{sources_block}
 
-Suggested structure:
+STRUCTURE (exactly this order):
 
-• Title
+1. First line: `# {title}` then one line with the subtitle in italics: `*{subtitle}*`
+2. `## Executive Summary` — 3-5 sentences covering the main findings, the overall
+   conclusion, and the most important uncertainties.
+3. `## Key Findings` — 3-5 findings. Each finding starts with
+   `### Finding N: <short claim>`, followed by 1-2 paragraphs that explain the
+   finding and attach an inline citation to the relevant claim, e.g. [1].
+4. `## Evidence and Analysis` — in-depth analysis: statistics, source
+   comparisons, trends, and implications. When the evidence supports it, include
+   a Markdown comparison table introduced by a bold caption such as
+   **Evidence at a glance**.
+5. Any topic-specific sections listed in the outline above. Skip a section if
+   the evidence does not support it.
+6. `## Implications and Recommendations` — practical recommendations for
+   developers, organizations, or policymakers, as suits the topic.
+7. `## Limitations and Open Questions` — missing evidence, contradictory
+   findings, uncertain estimates, and areas that need more research.
 
-• Executive Summary
-
-• Key Findings
-
-• Important Evidence
-
-• Analysis
-
-• Implications
-
-• Conclusion
+RULES:
+- Cite sources ONLY with inline bracket numbers matching the evidence above,
+  like [1] or [2][3]. Never invent numbers and never write URLs yourself.
+- Do NOT write a References section; it is added automatically.
+- Use ONLY facts from the evidence. If the evidence is thin, say so honestly
+  instead of guessing.
+- Adapt depth to the topic and the available evidence: be comprehensive, but do
+  not pad. A typical report is 700-1400 words.
+- Write in clear Markdown: headings, bullet lists, bold for emphasis, and a
+  table only when the data supports one.
+- Output only the report Markdown, starting with the `# title` line.
 
 Write the report now.
 """
@@ -65,64 +142,26 @@ Write the report now.
 
     full_response = ""
 
-    # --------------------------------
-    # Stream LLM report
-    # --------------------------------
-
     for chunk in llm.stream(prompt):
 
-        if chunk.content:
+        text = content_to_text(chunk.content)
 
-            # Show chunk in backend terminal
-            print(
-                chunk.content,
-                end="",
-                flush=True
-            )
+        if text:
 
-            # Send chunk to frontend through LangGraph
+            print(text, end="", flush=True)
+
             stream_writer({
                 "type": "report_chunk",
-                "content": chunk.content
+                "content": text
             })
 
-            # Save complete response
-            full_response += chunk.content
+            full_response += text
 
-
-    # --------------------------------
-    # Add real sources
-    # --------------------------------
-
-    sources_text = "\n\n## Sources\n\n"
-
-    for source in sources:
-
-        title = source.get("title")
-        url = source.get("url")
-
-        if title and url:
-
-            source_line = f"- [{title}]({url})\n"
-
-            sources_text += source_line
-
-            # Send source to frontend
-            stream_writer({
-                "type": "source",
-                "content": source_line
-            })
-
-
-    # --------------------------------
-    # Create complete report
-    # --------------------------------
-
-    final_report = full_response + sources_text
+    # Citation and formatting validation
+    final_report = validate_report(full_response, sources)
 
     print("\n\n[WRITER] LLM response completed.")
 
     return {
         "draft_report": final_report
     }
-

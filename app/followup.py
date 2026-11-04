@@ -1,5 +1,5 @@
 from app.state import ResearchState
-from app.config import llm
+from app.config import llm, content_to_text
 from langgraph.config import get_stream_writer
 
 
@@ -40,16 +40,18 @@ Answer the follow-up question now.
 
     for chunk in llm.stream(prompt):
 
-        if chunk.content:
+        text = content_to_text(chunk.content)
 
-            print(chunk.content, end="", flush=True)
+        if text:
+
+            print(text, end="", flush=True)
 
             stream_writer({
                 "type": "followup_chunk",
-                "content": chunk.content
+                "content": text
             })
 
-            full_response += chunk.content
+            full_response += text
 
     print("\n\n[FOLLOW-UP] Completed.")
 

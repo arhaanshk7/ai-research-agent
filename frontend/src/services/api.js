@@ -1,8 +1,10 @@
 
 import axios from "axios"
 
+const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000"
+
 const API = axios.create({
-  baseURL: "http://127.0.0.1:8000"
+  baseURL: API_URL
 })
 
 
@@ -18,7 +20,7 @@ export const startResearch = async (
   onReviewReady
 ) => {
 
-  const response = await fetch("http://127.0.0.1:8000/research", {
+  const response = await fetch(`${API_URL}/research`, {
     method: "POST",
 
     headers: {
@@ -148,7 +150,7 @@ export const askFollowUp = async (
   onComplete
 ) => {
 
-  const response = await fetch("http://127.0.0.1:8000/follow-up", {
+  const response = await fetch(`${API_URL}/follow-up`, {
     method: "POST",
 
     headers: {

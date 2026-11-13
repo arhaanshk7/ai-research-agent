@@ -9,6 +9,7 @@ from flashrank import Ranker, RerankRequest
 
 from app.state import ResearchState
 from app.config import llm, content_to_text
+from app.citations import MAX_SOURCES
 
 
 load_dotenv()
@@ -102,8 +103,8 @@ def merge_results(previous: list[dict], new: list[dict]) -> list[dict]:
     return merged
 
 
-def rerank_results(query: str, results: list[dict]) -> list[dict]:
-    """Rank documents by relevance and retain the top K results."""
+def rerank_results(query: str, results: list[dict], limit: int = TOP_K_RESULTS) -> list[dict]:
+    """Rank documents by relevance and retain the top `limit` results."""
 
     if not results:
         return []
@@ -129,7 +130,7 @@ def rerank_results(query: str, results: list[dict]) -> list[dict]:
 
     return [
         results[int(item["id"])]
-        for item in ranked_results[:TOP_K_RESULTS]
+        for item in ranked_results[:limit]
     ]
 
 
@@ -171,14 +172,15 @@ def researcher_node(state: ResearchState):
 
             new_results.extend(results)
 
-    # Preserve previous research while adding new evidence (deduped by URL)
-    research_results = merge_results(previous_results, new_results)
-
-    # Rank documents and retain the top 8
-    research_results = rerank_results(
-        state["user_query"],
-        research_results
-    )
+    if feedback:
+        # Revision: rank fresh results against the feedback and keep the best
+        # of them. Previous sources stay first so their citation numbers stay
+        # the same; fresh sources are appended with new numbers.
+        fresh_results = rerank_results(feedback, new_results, limit=3)
+        research_results = merge_results(fresh_results, previous_results)[:MAX_SOURCES]
+    else:
+        merged_results = merge_results(previous_results, new_results)
+        research_results = rerank_results(state["user_query"], merged_results)
 
     sources = []
     seen_sources = set()

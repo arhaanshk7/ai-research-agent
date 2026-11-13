@@ -5,8 +5,9 @@ function HumanReview({ threadId, setReport, setMeta, setApproved, disabled = fal
 
   const [feedback, setFeedback] = useState("")
   const [isRevising, setIsRevising] = useState(false)
+  const [notice, setNotice] = useState("")
 
-  const busy = disabled || isRevising
+  const busy = disabled || isRevising || Boolean(notice)
 
   if (!threadId) {
     return null
@@ -38,6 +39,12 @@ function HumanReview({ threadId, setReport, setMeta, setApproved, disabled = fal
         false,
         feedback
       )
+
+      if (data.status === "max_retries") {
+        setNotice(data.message)
+        setFeedback("")
+        return
+      }
 
       if (data.report) {
         setReport(data.report)
@@ -85,6 +92,13 @@ function HumanReview({ threadId, setReport, setMeta, setApproved, disabled = fal
       {isRevising && (
         <p className="mt-4 text-sm font-medium text-slate-600">
           Revising your report with your feedback...
+        </p>
+      )}
+
+
+      {notice && (
+        <p className="mt-4 rounded-lg bg-amber-50 px-4 py-3 text-sm font-medium text-amber-700">
+          {notice}
         </p>
       )}
 

@@ -155,6 +155,14 @@ def review(request: ReviewRequest):
             "message": "Research approved.",
         }
 
+    # Rejected, but the graph ended because the retry limit was reached
+    if not graph.get_state(config).next:
+
+        return {
+            "status": "max_retries",
+            "message": "Maximum retries reached. Please start a new research.",
+        }
+
     # Changes requested
     return {
         "thread_id": request.thread_id,

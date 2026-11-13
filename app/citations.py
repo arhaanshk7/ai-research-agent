@@ -1,4 +1,4 @@
-MAX_SOURCES = 12
+MAX_SOURCES = 14
 
 
 def build_numbered_sources(results, limit=MAX_SOURCES):

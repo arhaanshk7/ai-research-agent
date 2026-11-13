@@ -37,11 +37,8 @@ def build_evidence(state: ResearchState, sources: list[dict]) -> list[str]:
     return evidence
 
 
-def writer_node(state: ResearchState):
-
-    print("\n[WRITER] Starting...")
-
-    stream_writer = get_stream_writer()
+def build_report_prompt(state: ResearchState, sources_block: str) -> str:
+    """Prompt for the first draft of the report."""
 
     query = state["user_query"]
     meta = state.get("report_meta") or {}
@@ -49,44 +46,11 @@ def writer_node(state: ResearchState):
     subtitle = meta.get("subtitle") or ""
     outline = state.get("report_outline", "")
 
-    sources = build_numbered_sources(state.get("research_results", []))
-    evidence = build_evidence(state, sources)
-
     plan = "\n".join(
         f"- {q}" for q in state.get("research_plan", []) if q and q.strip()
     )
 
-    feedback = str(state.get("human_feedback") or "").strip()
-    missing = [m for m in state.get("quality_missing", []) if str(m).strip()]
-
-    # Revision prompt: only added when the reviewer rejected the report
-    revision_block = ""
-
-    if feedback:
-        print("[WRITER] Addressing reviewer feedback.")
-
-        revision_block = f"""
-REVIEWER FEEDBACK (this revision MUST address every point):
-{feedback}
-"""
-
-        if missing:
-            revision_block += "\nSTILL NOT ADDRESSED (a quality check failed on the previous revision):\n"
-            revision_block += "\n".join(f"- {m}" for m in missing)
-            revision_block += "\n"
-
-        revision_block += """
-REVISION RULES:
-- Address every point of the reviewer feedback exactly as the reviewer asked.
-- Remove or correct any statistic or claim the reviewer flagged as
-  unsupported. Never invent statistics: every number must appear in the
-  VERIFIED EVIDENCE below and carry its citation.
-- Do not repeat content the reviewer told you to remove.
-"""
-
-    sources_block = "\n\n".join(evidence) if evidence else "No evidence collected."
-
-    prompt = f"""
+    return f"""
 You are an expert research report writer.
 
 Write a complete, evidence-grounded research report in Markdown.
@@ -100,7 +64,7 @@ RESEARCH QUESTIONS:
 
 REPORT OUTLINE (topic-specific sections to include, in order):
 {outline or "- (no extra sections)"}
-{revision_block}
+
 VERIFIED EVIDENCE (cite only these sources, using their bracket numbers):
 {sources_block}
 
@@ -137,6 +101,58 @@ RULES:
 
 Write the report now.
 """
+
+
+def build_edit_prompt(state: ResearchState, sources_block: str, feedback: str) -> str:
+    """Prompt for editing the existing report with reviewer feedback."""
+
+    current_report = state.get("draft_report", "")
+
+    return f"""
+You are an expert research report editor.
+
+Edit the current report below. Apply ONLY the reviewer's requested change.
+Keep every other section and its wording exactly as it is.
+
+REVIEWER FEEDBACK:
+{feedback}
+
+CURRENT REPORT:
+{current_report}
+
+VERIFIED EVIDENCE (cite only these sources, using their bracket numbers):
+{sources_block}
+
+RULES:
+- Change only what the feedback asks for. Do not rewrite, reorder, or remove
+  content that was not mentioned.
+- Cite sources ONLY with inline bracket numbers from the evidence above.
+  Never invent numbers and never write URLs yourself.
+- Do NOT write a References section; it is added automatically.
+- Output only the full updated report Markdown.
+
+Return the complete updated report now.
+"""
+
+
+def writer_node(state: ResearchState):
+
+    print("\n[WRITER] Starting...")
+
+    stream_writer = get_stream_writer()
+
+    sources = build_numbered_sources(state.get("research_results", []))
+    evidence = build_evidence(state, sources)
+
+    sources_block = "\n\n".join(evidence) if evidence else "No evidence collected."
+
+    feedback = str(state.get("human_feedback") or "").strip()
+
+    if feedback:
+        print("[WRITER] Editing report with reviewer feedback.")
+        prompt = build_edit_prompt(state, sources_block, feedback)
+    else:
+        prompt = build_report_prompt(state, sources_block)
 
     print("[WRITER] Calling LLM...\n")
 
